@@ -3,7 +3,9 @@
   "minVersion": "0.8",
   "package": "com.telepathicgrunt.commandstructures.mixin",
   "compatibilityLevel": "JAVA_8",
-  "mixins": [],
+  "mixins": [
+    "SinglePoolElementAccessor"
+  ],
   "client": [],
   "injectors": {
     "defaultRequire": 1
