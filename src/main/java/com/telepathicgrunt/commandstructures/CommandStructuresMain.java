@@ -13,5 +13,6 @@ public class CommandStructuresMain implements ModInitializer {
     @Override
     public void onInitialize() {
         CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> StructureSpawnCommand.dataGenCommand(dispatcher));
+        CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> SpawnPiecesCommand.dataGenCommand(dispatcher));
     }
 }
