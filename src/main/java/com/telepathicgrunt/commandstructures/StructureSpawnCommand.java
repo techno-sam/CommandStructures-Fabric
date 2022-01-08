@@ -33,7 +33,6 @@ import net.minecraft.world.level.levelgen.structure.pieces.PieceGeneratorSupplie
 import net.minecraft.world.level.levelgen.structure.pieces.StructurePiecesBuilder;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessorList;
 
-import java.util.ArrayList;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -45,43 +44,43 @@ public class StructureSpawnCommand {
         String depthArg = "depth";
         String heightmapArg = "heightmapsnap";
         String legacyBoundsArg = "legacyboundingboxrule";
-        String randomSeed = "randomseed";
         String disableProcessors = "disableprocessors";
+        String randomSeed = "randomseed";
 
         LiteralCommandNode<CommandSourceStack> source = dispatcher.register(Commands.literal(commandString)
                 .requires((permission) -> permission.hasPermission(2))
                 .then(Commands.argument(poolArg, ResourceLocationArgument.id())
-                        .suggests((ctx, sb) -> SharedSuggestionProvider.suggestResource(startPoolSuggestions(ctx), sb))
-                        .executes(cs -> {
-                            generateStructure(cs.getArgument(poolArg, ResourceLocation.class), 10, false, false, false, null, cs);
-                            return 1;
-                        })
-                        .then(Commands.argument(depthArg, IntegerArgumentType.integer())
-                                .executes(cs -> {
-                                    generateStructure(cs.getArgument(poolArg, ResourceLocation.class), cs.getArgument(depthArg, Integer.class), false, false, false, null, cs);
-                                    return 1;
-                                })
-                                .then(Commands.argument(heightmapArg, BoolArgumentType.bool())
-                                        .executes(cs -> {
-                                            generateStructure(cs.getArgument(poolArg, ResourceLocation.class), cs.getArgument(depthArg, Integer.class), cs.getArgument(heightmapArg, Boolean.class), false, false, null, cs);
-                                            return 1;
-                                        })
-                                        .then(Commands.argument(legacyBoundsArg, BoolArgumentType.bool())
-                                                .executes(cs -> {
-                                                    generateStructure(cs.getArgument(poolArg, ResourceLocation.class), cs.getArgument(depthArg, Integer.class), cs.getArgument(heightmapArg, Boolean.class), cs.getArgument(legacyBoundsArg, Boolean.class), false, null, cs);
-                                                    return 1;
-                                                })
-                                                .then(Commands.argument(disableProcessors, BoolArgumentType.bool())
-                                                        .executes(cs -> {
-                                                            generateStructure(cs.getArgument(poolArg, ResourceLocation.class), cs.getArgument(depthArg, Integer.class), cs.getArgument(heightmapArg, Boolean.class), cs.getArgument(legacyBoundsArg, Boolean.class), cs.getArgument(disableProcessors, Boolean.class), null, cs);
-                                                            return 1;
-                                                        })
-                                                        .then(Commands.argument(randomSeed, LongArgumentType.longArg())
-                                                                .executes(cs -> {
-                                                                    generateStructure(cs.getArgument(poolArg, ResourceLocation.class), cs.getArgument(depthArg, Integer.class), cs.getArgument(heightmapArg, Boolean.class), cs.getArgument(legacyBoundsArg, Boolean.class), cs.getArgument(disableProcessors, Boolean.class), cs.getArgument(randomSeed, Long.class), cs);
-                                                                    return 1;
-                                                                })
-                                                        )))))));
+                .suggests((ctx, sb) -> SharedSuggestionProvider.suggestResource(startPoolSuggestions(ctx), sb))
+                .executes(cs -> {
+                    generateStructure(cs.getArgument(poolArg, ResourceLocation.class), 10, false, false, false, null, cs);
+                    return 1;
+                })
+                .then(Commands.argument(depthArg, IntegerArgumentType.integer())
+                .executes(cs -> {
+                    generateStructure(cs.getArgument(poolArg, ResourceLocation.class), cs.getArgument(depthArg, Integer.class), false, false, false, null, cs);
+                    return 1;
+                })
+                .then(Commands.argument(heightmapArg, BoolArgumentType.bool())
+                .executes(cs -> {
+                    generateStructure(cs.getArgument(poolArg, ResourceLocation.class), cs.getArgument(depthArg, Integer.class), cs.getArgument(heightmapArg, Boolean.class), false, false, null, cs);
+                    return 1;
+                })
+                .then(Commands.argument(legacyBoundsArg, BoolArgumentType.bool())
+                .executes(cs -> {
+                    generateStructure(cs.getArgument(poolArg, ResourceLocation.class), cs.getArgument(depthArg, Integer.class), cs.getArgument(heightmapArg, Boolean.class), cs.getArgument(legacyBoundsArg, Boolean.class), false, null, cs);
+                    return 1;
+                })
+                .then(Commands.argument(disableProcessors, BoolArgumentType.bool())
+                .executes(cs -> {
+                    generateStructure(cs.getArgument(poolArg, ResourceLocation.class), cs.getArgument(depthArg, Integer.class), cs.getArgument(heightmapArg, Boolean.class), cs.getArgument(legacyBoundsArg, Boolean.class), cs.getArgument(disableProcessors, Boolean.class), null, cs);
+                    return 1;
+                })
+                .then(Commands.argument(randomSeed, LongArgumentType.longArg())
+                .executes(cs -> {
+                    generateStructure(cs.getArgument(poolArg, ResourceLocation.class), cs.getArgument(depthArg, Integer.class), cs.getArgument(heightmapArg, Boolean.class), cs.getArgument(legacyBoundsArg, Boolean.class), cs.getArgument(disableProcessors, Boolean.class), cs.getArgument(randomSeed, Long.class), cs);
+                    return 1;
+                })
+        )))))));
 
         dispatcher.register(Commands.literal(commandString).redirect(source));
     }
