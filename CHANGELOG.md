@@ -1,3 +1,9 @@
+## **(V.1.3.0 Changes) (1.18.1 Minecraft)**
+
+##### Command:
+Added location argument to /spawnstructure command.
+
+
 ## **(V.1.2.1 Changes) (1.18.1 Minecraft)**
 
 ##### Command:
