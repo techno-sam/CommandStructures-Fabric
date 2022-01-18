@@ -163,6 +163,8 @@ public class StructureSpawnCommand {
                 }
             });
         }
+
+        Utilities.refreshChunksOnClients(level);
     }
 
     private static void generatePiece(ServerLevel level, PieceGeneratorSupplier.Context<JigsawConfiguration> newContext, WorldgenRandom worldgenrandom, BlockPos finalCenterPos, StructurePiece piece) {

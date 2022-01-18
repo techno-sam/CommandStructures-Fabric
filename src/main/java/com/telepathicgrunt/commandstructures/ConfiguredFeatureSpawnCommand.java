@@ -3,7 +3,6 @@ package com.telepathicgrunt.commandstructures;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.tree.LiteralCommandNode;
-import com.telepathicgrunt.commandstructures.mixin.ChunkMapAccessor;
 import net.minecraft.commands.CommandRuntimeException;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -14,11 +13,8 @@ import net.minecraft.commands.arguments.coordinates.Vec3Argument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
 import net.minecraft.network.chat.TextComponent;
-import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.level.ChunkHolder;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
 
 import java.util.Set;
@@ -59,18 +55,6 @@ public class ConfiguredFeatureSpawnCommand {
 
         cf.place(level, level.getChunkSource().getGenerator(), level.getRandom(), centerPos);
 
-        for(ChunkHolder chunkholder : ((ChunkMapAccessor)level.getChunkSource().chunkMap).callGetChunks()) {
-            LevelChunk levelChunk = chunkholder.getTickingChunk();
-            if(levelChunk != null) {
-                int viewDistance = ((ChunkMapAccessor)level.getChunkSource().chunkMap).getViewDistance();
-                ClientboundLevelChunkWithLightPacket lightPacket = new ClientboundLevelChunkWithLightPacket(levelChunk, level.getLightEngine(), null, null, true);
-                level.players().forEach(player -> {
-                    int distance = player.chunkPosition().getChessboardDistance(levelChunk.getPos());
-                    if(distance < viewDistance) {
-                        player.trackChunk(levelChunk.getPos(), lightPacket);
-                    }
-                });
-            }
-        }
+        Utilities.refreshChunksOnClients(level);
     }
 }
