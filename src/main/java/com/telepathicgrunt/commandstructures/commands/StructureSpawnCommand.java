@@ -6,8 +6,10 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.tree.LiteralCommandNode;
+import com.telepathicgrunt.commandstructures.CommandStructuresMain;
 import com.telepathicgrunt.commandstructures.Utilities;
 import com.telepathicgrunt.commandstructures.mixin.SinglePoolElementAccessor;
+import net.minecraft.commands.CommandRuntimeException;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
@@ -17,6 +19,7 @@ import net.minecraft.commands.arguments.coordinates.Vec3Argument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
 import net.minecraft.data.worldgen.ProcessorLists;
+import net.minecraft.network.chat.TextComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
@@ -27,6 +30,7 @@ import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.feature.configurations.JigsawConfiguration;
 import net.minecraft.world.level.levelgen.feature.structures.JigsawPlacement;
 import net.minecraft.world.level.levelgen.feature.structures.SinglePoolElement;
+import net.minecraft.world.level.levelgen.feature.structures.StructureTemplatePool;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
@@ -35,6 +39,7 @@ import net.minecraft.world.level.levelgen.structure.pieces.PieceGeneratorSupplie
 import net.minecraft.world.level.levelgen.structure.pieces.StructurePiecesBuilder;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessorList;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -98,8 +103,16 @@ public class StructureSpawnCommand {
         BlockPos centerPos = coordinates.getBlockPos(cs.getSource());
         if(heightmapSnap) centerPos = centerPos.below(centerPos.getY()); //not a typo. Needed so heightmap is not offset by player height.
 
+        StructureTemplatePool templatePool = level.registryAccess().ownedRegistryOrThrow(Registry.TEMPLATE_POOL_REGISTRY).get(structureStartPoolRL);
+
+        if(templatePool == null || templatePool.size() == 0) {
+            String errorMsg = structureStartPoolRL + " template pool does not exist or is empty";
+            CommandStructuresMain.LOGGER.error(errorMsg);
+            throw new CommandRuntimeException(new TextComponent(errorMsg));
+        }
+
         JigsawConfiguration newConfig = new JigsawConfiguration(
-                () -> level.registryAccess().ownedRegistryOrThrow(Registry.TEMPLATE_POOL_REGISTRY).get(structureStartPoolRL),
+                () -> templatePool,
                 depth
         );
 
@@ -147,8 +160,9 @@ public class StructureSpawnCommand {
             }
 
             BlockPos finalCenterPos = centerPos;
+            List<StructurePiece> structurePieceList = structurepiecesbuilder.build().pieces();
 
-            structurepiecesbuilder.build().pieces().forEach(piece -> {
+            structurePieceList.forEach(piece -> {
                 if(disableProcessors) {
                     if(piece instanceof PoolElementStructurePiece poolElementStructurePiece) {
                         if(poolElementStructurePiece.getElement() instanceof SinglePoolElement singlePoolElement) {
@@ -163,9 +177,16 @@ public class StructureSpawnCommand {
                     generatePiece(level, newContext, worldgenrandom, finalCenterPos, piece);
                 }
             });
-        }
 
-        Utilities.refreshChunksOnClients(level);
+            if(!structurePieceList.isEmpty()) {
+                Utilities.refreshChunksOnClients(level);
+            }
+            else {
+                String errorMsg = structureStartPoolRL + " Template Pool spawned no pieces.";
+                CommandStructuresMain.LOGGER.error(errorMsg);
+                throw new CommandRuntimeException(new TextComponent(errorMsg));
+            }
+        }
     }
 
     private static void generatePiece(ServerLevel level, PieceGeneratorSupplier.Context<JigsawConfiguration> newContext, WorldgenRandom worldgenrandom, BlockPos finalCenterPos, StructurePiece piece) {

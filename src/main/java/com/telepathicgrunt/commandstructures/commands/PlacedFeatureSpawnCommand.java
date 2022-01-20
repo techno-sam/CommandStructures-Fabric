@@ -33,14 +33,14 @@ public class PlacedFeatureSpawnCommand {
         String rlArg = "placedfeatureresourcelocation";
 
         LiteralCommandNode<CommandSourceStack> source = dispatcher.register(Commands.literal(commandString)
-                .requires((permission) -> permission.hasPermission(2))
-                .then(Commands.argument(locationArg, Vec3Argument.vec3())
-                        .then(Commands.argument(rlArg, ResourceLocationArgument.id())
-                                .suggests((ctx, sb) -> SharedSuggestionProvider.suggestResource(placedFeatureSuggestions(ctx), sb))
-                                .executes(cs -> {
-                                    generateStructure(Vec3Argument.getCoordinates(cs, locationArg), cs.getArgument(rlArg, ResourceLocation.class), cs);
-                                    return 1;
-                                }))));
+            .requires((permission) -> permission.hasPermission(2))
+            .then(Commands.argument(locationArg, Vec3Argument.vec3())
+            .then(Commands.argument(rlArg, ResourceLocationArgument.id())
+            .suggests((ctx, sb) -> SharedSuggestionProvider.suggestResource(placedFeatureSuggestions(ctx), sb))
+            .executes(cs -> {
+                generateStructure(Vec3Argument.getCoordinates(cs, locationArg), cs.getArgument(rlArg, ResourceLocation.class), cs);
+                return 1;
+            }))));
 
         dispatcher.register(Commands.literal(commandString).redirect(source));
     }
@@ -69,7 +69,13 @@ public class PlacedFeatureSpawnCommand {
                         .filter(placementModifier -> placementModifier.type() != biomePlacement)
                         .collect(Collectors.toList()));
 
-        noBiomeCheckPlacedFeature.place(level, level.getChunkSource().getGenerator(), level.getRandom(), worldBottomPos);
+        boolean success = noBiomeCheckPlacedFeature.place(level, level.getChunkSource().getGenerator(), level.getRandom(), worldBottomPos);
+
+        if(!success) {
+            String errorMsg = placedFeatureRL + " placedfeature failed to be spawned. (It may have internal checks for valid spots)";
+            CommandStructuresMain.LOGGER.error(errorMsg);
+            throw new CommandRuntimeException(new TextComponent(errorMsg));
+        }
 
         Utilities.refreshChunksOnClients(level);
     }
