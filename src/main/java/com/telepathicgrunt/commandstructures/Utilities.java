@@ -1,27 +1,26 @@
 package com.telepathicgrunt.commandstructures;
 
 import com.telepathicgrunt.commandstructures.mixin.ChunkMapAccessor;
-import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
-import net.minecraft.server.level.ChunkHolder;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.network.packet.s2c.play.ChunkDataS2CPacket;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.math.ChunkPos;
+import net.minecraft.world.chunk.Chunk;
+import net.minecraft.world.chunk.WorldChunk;
 
 public final class Utilities {
     private Utilities() {}
 
-    public static void refreshChunksOnClients(ServerLevel level) {
-        int viewDistance = ((ChunkMapAccessor)level.getChunkSource().chunkMap).getViewDistance();
-        level.players().forEach(player -> {
+    public static void refreshChunksOnClients(ServerWorld level) {
+        int viewDistance = ((ChunkMapAccessor)level.getChunkManager().threadedAnvilChunkStorage).getViewDistance();
+        level.getPlayers().forEach(player -> {
             for(int x = -viewDistance; x <= viewDistance; x++) {
                 for(int z = -viewDistance; z <= viewDistance; z++) {
                     if(x + z < viewDistance) {
-                        ChunkAccess chunkAccess = level.getChunk(new ChunkPos(player.chunkPosition().x + x, player.chunkPosition().z + z).getWorldPosition());
-                        if(chunkAccess instanceof LevelChunk levelChunk) {
-                            ClientboundLevelChunkWithLightPacket lightPacket = new ClientboundLevelChunkWithLightPacket(levelChunk, level.getLightEngine(), null, null, true);
-                            player.untrackChunk(levelChunk.getPos());
-                            player.trackChunk(levelChunk.getPos(), lightPacket);
+                        Chunk chunkAccess = level.getChunk(new ChunkPos(player.getChunkPos().x + x, player.getChunkPos().z + z).getStartPos());
+                        if(chunkAccess instanceof WorldChunk levelChunk) {
+                            ChunkDataS2CPacket lightPacket = new ChunkDataS2CPacket(levelChunk, level.getLightingProvider(), null, null, true);
+                            player.sendUnloadChunkPacket(levelChunk.getPos());
+                            player.sendInitialChunkPackets(levelChunk.getPos(), lightPacket);
                         }
                     }
                 }

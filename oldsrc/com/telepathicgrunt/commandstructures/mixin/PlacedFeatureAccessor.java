@@ -1,6 +1,6 @@
 package com.telepathicgrunt.commandstructures.mixin;
 
-import net.minecraft.world.gen.feature.ConfiguredFeature;
+import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;

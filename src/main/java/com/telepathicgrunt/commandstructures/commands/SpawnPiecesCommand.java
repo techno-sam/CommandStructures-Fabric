@@ -6,35 +6,34 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import com.telepathicgrunt.commandstructures.CommandStructuresMain;
-import net.minecraft.commands.CommandRuntimeException;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
-import net.minecraft.commands.SharedSuggestionProvider;
-import net.minecraft.commands.arguments.ResourceLocationArgument;
-import net.minecraft.commands.arguments.blocks.BlockStateArgument;
-import net.minecraft.commands.arguments.coordinates.Coordinates;
-import net.minecraft.commands.arguments.coordinates.Vec3Argument;
-import net.minecraft.commands.arguments.coordinates.WorldCoordinate;
-import net.minecraft.commands.arguments.coordinates.WorldCoordinates;
-import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.TextComponent;
-import net.minecraft.network.chat.TranslatableComponent;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.StructureBlock;
+import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.block.entity.StructureBlockBlockEntity;
+import net.minecraft.block.enums.StructureBlockMode;
+import net.minecraft.command.CommandException;
+import net.minecraft.command.CommandSource;
+import net.minecraft.command.argument.BlockStateArgumentType;
+import net.minecraft.command.argument.CoordinateArgument;
+import net.minecraft.command.argument.DefaultPosArgument;
+import net.minecraft.command.argument.IdentifierArgumentType;
+import net.minecraft.command.argument.PosArgument;
+import net.minecraft.command.argument.Vec3ArgumentType;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.resource.ResourceManager;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.packs.resources.ResourceManager;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.StructureBlock;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.entity.StructureBlockEntity;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.StructureMode;
-import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.level.chunk.LevelChunk;
-import net.minecraft.world.level.levelgen.structure.templatesystem.StructureManager;
-import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
-
+import net.minecraft.server.command.CommandManager;
+import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.structure.Structure;
+import net.minecraft.structure.StructureManager;
+import net.minecraft.text.LiteralText;
+import net.minecraft.text.TranslatableText;
+import net.minecraft.util.Identifier;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.chunk.Chunk;
+import net.minecraft.world.chunk.WorldChunk;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -43,9 +42,9 @@ import java.util.stream.Collectors;
 
 public class SpawnPiecesCommand {
     private static MinecraftServer currentMinecraftServer = null;
-    private static Set<ResourceLocation> cachedSuggestion = new HashSet<>();
+    private static Set<Identifier> cachedSuggestion = new HashSet<>();
 
-    public static void dataGenCommand(CommandDispatcher<CommandSourceStack> dispatcher) {
+    public static void dataGenCommand(CommandDispatcher<ServerCommandSource> dispatcher) {
         String commandString = "spawnpieces";
         String rlArg = "resourcelocationpath";
         String locationArg = "location";
@@ -54,57 +53,57 @@ public class SpawnPiecesCommand {
         String rowlengthArg = "rowlength";
         String fillerblockArg = "fillerblock";
 
-        LiteralCommandNode<CommandSourceStack> source = dispatcher.register(Commands.literal(commandString)
-                .requires((permission) -> permission.hasPermission(2))
-                .then(Commands.argument(rlArg, ResourceLocationArgument.id())
-                .suggests((ctx, sb) -> SharedSuggestionProvider.suggestResource(templatePathsSuggestions(ctx), sb))
+        LiteralCommandNode<ServerCommandSource> source = dispatcher.register(CommandManager.literal(commandString)
+                .requires((permission) -> permission.hasPermissionLevel(2))
+                .then(CommandManager.argument(rlArg, IdentifierArgumentType.identifier())
+                .suggests((ctx, sb) -> CommandSource.suggestIdentifiers(templatePathsSuggestions(ctx), sb))
                 .executes(cs -> {
-                    WorldCoordinates worldCoordinates = new WorldCoordinates(
-                            new WorldCoordinate(false, cs.getSource().getPosition().x()),
-                            new WorldCoordinate(false, cs.getSource().getPosition().y()),
-                            new WorldCoordinate(false, cs.getSource().getPosition().z())
+                    DefaultPosArgument worldCoordinates = new DefaultPosArgument(
+                            new CoordinateArgument(false, cs.getSource().getPosition().getX()),
+                            new CoordinateArgument(false, cs.getSource().getPosition().getY()),
+                            new CoordinateArgument(false, cs.getSource().getPosition().getZ())
                     );
-                    spawnPieces(cs.getArgument(rlArg, ResourceLocation.class), worldCoordinates, false, Blocks.BARRIER.defaultBlockState(), Blocks.AIR.defaultBlockState(), 13, cs);
+                    spawnPieces(cs.getArgument(rlArg, Identifier.class), worldCoordinates, false, Blocks.BARRIER.getDefaultState(), Blocks.AIR.getDefaultState(), 13, cs);
                     return 1;
                 })
-                .then(Commands.argument(locationArg, Vec3Argument.vec3())
+                .then(CommandManager.argument(locationArg, Vec3ArgumentType.vec3())
                 .executes(cs -> {
-                    spawnPieces(cs.getArgument(rlArg, ResourceLocation.class), Vec3Argument.getCoordinates(cs, locationArg), false, Blocks.BARRIER.defaultBlockState(), Blocks.AIR.defaultBlockState(), 13, cs);
+                    spawnPieces(cs.getArgument(rlArg, Identifier.class), Vec3ArgumentType.getPosArgument(cs, locationArg), false, Blocks.BARRIER.getDefaultState(), Blocks.AIR.getDefaultState(), 13, cs);
                     return 1;
                 })
-                .then(Commands.argument(savepieceArg, BoolArgumentType.bool())
+                .then(CommandManager.argument(savepieceArg, BoolArgumentType.bool())
                 .executes(cs -> {
-                    spawnPieces(cs.getArgument(rlArg, ResourceLocation.class), Vec3Argument.getCoordinates(cs, locationArg), cs.getArgument(savepieceArg, boolean.class), Blocks.BARRIER.defaultBlockState(), Blocks.AIR.defaultBlockState(), 13, cs);
+                    spawnPieces(cs.getArgument(rlArg, Identifier.class), Vec3ArgumentType.getPosArgument(cs, locationArg), cs.getArgument(savepieceArg, boolean.class), Blocks.BARRIER.getDefaultState(), Blocks.AIR.getDefaultState(), 13, cs);
                     return 1;
                 })
-                .then(Commands.argument(floorblockArg, BlockStateArgument.block())
+                .then(CommandManager.argument(floorblockArg, BlockStateArgumentType.blockState())
                 .executes(cs -> {
-                    spawnPieces(cs.getArgument(rlArg, ResourceLocation.class), Vec3Argument.getCoordinates(cs, locationArg), cs.getArgument(savepieceArg, boolean.class), BlockStateArgument.getBlock(cs, floorblockArg).getState(), Blocks.AIR.defaultBlockState(), 13, cs);
+                    spawnPieces(cs.getArgument(rlArg, Identifier.class), Vec3ArgumentType.getPosArgument(cs, locationArg), cs.getArgument(savepieceArg, boolean.class), BlockStateArgumentType.getBlockState(cs, floorblockArg).getBlockState(), Blocks.AIR.getDefaultState(), 13, cs);
                     return 1;
                 })
-                .then(Commands.argument(fillerblockArg, BlockStateArgument.block())
+                .then(CommandManager.argument(fillerblockArg, BlockStateArgumentType.blockState())
                 .executes(cs -> {
-                    spawnPieces(cs.getArgument(rlArg, ResourceLocation.class), Vec3Argument.getCoordinates(cs, locationArg), cs.getArgument(savepieceArg, boolean.class), BlockStateArgument.getBlock(cs, floorblockArg).getState(), BlockStateArgument.getBlock(cs, fillerblockArg).getState(), 13, cs);
+                    spawnPieces(cs.getArgument(rlArg, Identifier.class), Vec3ArgumentType.getPosArgument(cs, locationArg), cs.getArgument(savepieceArg, boolean.class), BlockStateArgumentType.getBlockState(cs, floorblockArg).getBlockState(), BlockStateArgumentType.getBlockState(cs, fillerblockArg).getBlockState(), 13, cs);
                     return 1;
                 })
-                .then(Commands.argument(rowlengthArg, IntegerArgumentType.integer())
+                .then(CommandManager.argument(rowlengthArg, IntegerArgumentType.integer())
                 .executes(cs -> {
-                    spawnPieces(cs.getArgument(rlArg, ResourceLocation.class), Vec3Argument.getCoordinates(cs, locationArg), cs.getArgument(savepieceArg, boolean.class), BlockStateArgument.getBlock(cs, floorblockArg).getState(), BlockStateArgument.getBlock(cs, fillerblockArg).getState(), cs.getArgument(rowlengthArg, Integer.class), cs);
+                    spawnPieces(cs.getArgument(rlArg, Identifier.class), Vec3ArgumentType.getPosArgument(cs, locationArg), cs.getArgument(savepieceArg, boolean.class), BlockStateArgumentType.getBlockState(cs, floorblockArg).getBlockState(), BlockStateArgumentType.getBlockState(cs, fillerblockArg).getBlockState(), cs.getArgument(rowlengthArg, Integer.class), cs);
                     return 1;
                 })
         )))))));
 
-        dispatcher.register(Commands.literal(commandString).redirect(source));
+        dispatcher.register(CommandManager.literal(commandString).redirect(source));
     }
 
-    private static Set<ResourceLocation> templatePathsSuggestions(CommandContext<CommandSourceStack> cs) {
+    private static Set<Identifier> templatePathsSuggestions(CommandContext<ServerCommandSource> cs) {
         if(currentMinecraftServer == cs.getSource().getServer()) {
             return cachedSuggestion;
         }
 
-        ResourceManager resourceManager = cs.getSource().getLevel().getServer().getResourceManager();
+        ResourceManager resourceManager = cs.getSource().getWorld().getServer().getResourceManager();
         Set<String> modidStrings = new HashSet<>();
-        Set<ResourceLocation> rlSet = resourceManager.listResources("structures", (filename) -> filename.endsWith(".nbt"))
+        Set<Identifier> rlSet = resourceManager.findResources("structures", (filename) -> filename.endsWith(".nbt"))
                 .stream()
                 .map(resourceLocation -> {
                     String namespace = resourceLocation.getNamespace();
@@ -120,13 +119,13 @@ public class SpawnPiecesCommand {
                         path = path.substring(0, i) + "/";
                     }
 
-                    return new ResourceLocation(namespace, path);
+                    return new Identifier(namespace, path);
                 })
                 .collect(Collectors.toSet());
 
         // add suggestion for entire mods/vanilla too
         rlSet.addAll(modidStrings.stream()
-                .map(modid -> new ResourceLocation(modid, ""))
+                .map(modid -> new Identifier(modid, ""))
                 .collect(Collectors.toSet()));
 
         currentMinecraftServer = cs.getSource().getServer();
@@ -134,17 +133,17 @@ public class SpawnPiecesCommand {
         return rlSet;
     }
 
-    public static void spawnPieces(ResourceLocation path, Coordinates coordinates, boolean savePieces, BlockState floorBlockState, BlockState fillBlockState, int rowlength, CommandContext<CommandSourceStack> cs) {
-        ServerLevel level = cs.getSource().getLevel();
-        Player player = cs.getSource().getEntity() instanceof Player player1 ? player1 : null;
-        BlockPos pos = coordinates.getBlockPos(cs.getSource());
+    public static void spawnPieces(Identifier path, PosArgument coordinates, boolean savePieces, BlockState floorBlockState, BlockState fillBlockState, int rowlength, CommandContext<ServerCommandSource> cs) {
+        ServerWorld level = cs.getSource().getWorld();
+        PlayerEntity player = cs.getSource().getEntity() instanceof PlayerEntity player1 ? player1 : null;
+        BlockPos pos = coordinates.toAbsoluteBlockPos(cs.getSource());
 
-        List<ResourceLocation> nbtRLs = getResourceLocations(player, level, path.getNamespace(), path.getPath());
+        List<Identifier> nbtRLs = getResourceLocations(player, level, path.getNamespace(), path.getPath());
 
         if(nbtRLs.isEmpty()) {
             String errorMsg = path + " path has no nbt pieces in it. No pieces will be placed.";
             CommandStructuresMain.LOGGER.error(errorMsg);
-            throw new CommandRuntimeException(new TextComponent(errorMsg));
+            throw new CommandException(new LiteralText(errorMsg));
         }
 
         // Size of area we will need
@@ -162,8 +161,8 @@ public class SpawnPiecesCommand {
         generateStructurePieces(level, pos, player, nbtRLs, columnCount, spacing, savePieces);
     }
 
-    private static void clearAreaNew(ServerLevel world, BlockPos pos, Player player, BlockPos bounds, BlockState fillBlock, BlockState floorBlock) {
-        BlockPos.MutableBlockPos mutableChunk = new BlockPos.MutableBlockPos().set(pos.getX() >> 4, pos.getY(), pos.getZ() >> 4);
+    private static void clearAreaNew(ServerWorld world, BlockPos pos, PlayerEntity player, BlockPos bounds, BlockState fillBlock, BlockState floorBlock) {
+        BlockPos.Mutable mutableChunk = new BlockPos.Mutable().set(pos.getX() >> 4, pos.getY(), pos.getZ() >> 4);
         mutableChunk.move(1,0,0);
         int endChunkX = (pos.getX() + bounds.getX()) >> 4;
         int endChunkZ = (pos.getZ() + bounds.getZ()) >> 4;
@@ -172,8 +171,8 @@ public class SpawnPiecesCommand {
         int currentSection = 0;
         for(; mutableChunk.getX() < endChunkX; mutableChunk.move(1,0,0)) {
             for (; mutableChunk.getZ() < endChunkZ; mutableChunk.move(0, 0, 1)) {
-                LevelChunk chunk = world.getChunk(mutableChunk.getX(), mutableChunk.getZ());
-                BlockPos.MutableBlockPos mutable = new BlockPos(mutableChunk.getX() << 4, pos.getY(), mutableChunk.getZ() << 4).mutable();
+                WorldChunk chunk = world.getChunk(mutableChunk.getX(), mutableChunk.getZ());
+                BlockPos.Mutable mutable = new BlockPos(mutableChunk.getX() << 4, pos.getY(), mutableChunk.getZ() << 4).mutableCopy();
                 mutable.move(-1, 0, 0);
                 for(int x = 0; x < 16; x++) {
                     mutable.setZ(mutableChunk.getZ() << 4);
@@ -183,22 +182,22 @@ public class SpawnPiecesCommand {
                         mutable.setY(pos.getY());
                         BlockState oldState = chunk.setBlockState(mutable, floorBlock, false);
                         if(oldState != null) {
-                            world.getChunkSource().blockChanged(mutable);
-                            world.getChunkSource().getLightEngine().checkBlock(mutable);
+                            world.getChunkManager().markForUpdate(mutable);
+                            world.getChunkManager().getLightingProvider().checkBlock(mutable);
                         }
                         for(int y = pos.getY() + 1; y < pos.getY() + 64; y++) {
                             mutable.setY(y);
                             oldState = chunk.setBlockState(mutable, fillBlock, false);
                             if(oldState != null) {
-                                world.getChunkSource().blockChanged(mutable);
-                                world.getChunkSource().getLightEngine().checkBlock(mutable);
+                                world.getChunkManager().markForUpdate(mutable);
+                                world.getChunkManager().getLightingProvider().checkBlock(mutable);
                             }
                         }
                     }
                 }
                 currentSection++;
                 if(player != null) {
-                    player.displayClientMessage(new TranslatableComponent("Working: %" +  Math.round(((float)currentSection / maxChunks) * 100f)), true);
+                    player.sendMessage(new TranslatableText("Working: %" +  Math.round(((float)currentSection / maxChunks) * 100f)), true);
                 }
             }
             mutableChunk.set(mutableChunk.getX(), mutableChunk.getY(), pos.getZ() >> 4); // Set back to start of row
@@ -207,37 +206,37 @@ public class SpawnPiecesCommand {
 
 
 
-    private static List<ResourceLocation> getResourceLocations(Player player, ServerLevel world, String modId, String filter) {
+    private static List<Identifier> getResourceLocations(PlayerEntity player, ServerWorld world, String modId, String filter) {
         ResourceManager resourceManager = world.getServer().getResourceManager();
-        return resourceManager.listResources("structures", (filename) -> filename.endsWith(".nbt"))
+        return resourceManager.findResources("structures", (filename) -> filename.endsWith(".nbt"))
                 .stream()
                 .filter(resourceLocation -> resourceLocation.getNamespace().equals(modId))
                 .filter(resourceLocation -> resourceLocation.getPath().startsWith("structures/" + filter))
-                .map(resourceLocation -> new ResourceLocation(resourceLocation.getNamespace(), resourceLocation.getPath().replaceAll("^structures/", "").replaceAll(".nbt$", "")))
+                .map(resourceLocation -> new Identifier(resourceLocation.getNamespace(), resourceLocation.getPath().replaceAll("^structures/", "").replaceAll(".nbt$", "")))
                 .toList();
     }
 
 
-    private static void generateStructurePieces(ServerLevel world, BlockPos pos, Player player, List<ResourceLocation> nbtRLs, int columnCount, int spacing, boolean savePieces) {
-        BlockPos.MutableBlockPos mutable = new BlockPos.MutableBlockPos().set(((pos.getX() >> 4) + 1) << 4, pos.getY(), (pos.getZ() >> 4) << 4);
+    private static void generateStructurePieces(ServerWorld world, BlockPos pos, PlayerEntity player, List<Identifier> nbtRLs, int columnCount, int spacing, boolean savePieces) {
+        BlockPos.Mutable mutable = new BlockPos.Mutable().set(((pos.getX() >> 4) + 1) << 4, pos.getY(), (pos.getZ() >> 4) << 4);
 
         for(int pieceIndex = 1; pieceIndex <= nbtRLs.size(); pieceIndex++) {
             if(player != null) {
-                player.displayClientMessage(new TranslatableComponent(" Working making structure: " + nbtRLs.get(pieceIndex - 1)), true);
+                player.sendMessage(new TranslatableText(" Working making structure: " + nbtRLs.get(pieceIndex - 1)), true);
             }
 
-            world.setBlock(mutable, Blocks.STRUCTURE_BLOCK.defaultBlockState().setValue(StructureBlock.MODE, StructureMode.LOAD), 3);
+            world.setBlockState(mutable, Blocks.STRUCTURE_BLOCK.getDefaultState().with(StructureBlock.MODE, StructureBlockMode.LOAD), 3);
             BlockEntity be = world.getBlockEntity(mutable);
-            if(be instanceof StructureBlockEntity structureBlockTileEntity) {
+            if(be instanceof StructureBlockBlockEntity structureBlockTileEntity) {
                 structureBlockTileEntity.setStructureName(nbtRLs.get(pieceIndex-1)); // set identifier
 
-                structureBlockTileEntity.setMode(StructureMode.LOAD);
+                structureBlockTileEntity.setMode(StructureBlockMode.LOAD);
                 structureBlockTileEntity.setIgnoreEntities(false);
 
                 fillStructureVoidSpace(world, nbtRLs.get(pieceIndex-1), mutable);
                 structureBlockTileEntity.loadStructure(world,false); // load structure
 
-                structureBlockTileEntity.setMode(StructureMode.SAVE);
+                structureBlockTileEntity.setMode(StructureBlockMode.SAVE);
                 if(savePieces) {
                     structureBlockTileEntity.saveStructure(true);
                 }
@@ -255,12 +254,12 @@ public class SpawnPiecesCommand {
     }
 
     // Needed so that structure void is preserved in structure pieces.
-    private static void fillStructureVoidSpace(ServerLevel world, ResourceLocation resourceLocation, BlockPos startSpot) {
+    private static void fillStructureVoidSpace(ServerWorld world, Identifier resourceLocation, BlockPos startSpot) {
         StructureManager structuremanager = world.getStructureManager();
-        Optional<StructureTemplate> optional = structuremanager.get(resourceLocation);
+        Optional<Structure> optional = structuremanager.getStructure(resourceLocation);
         optional.ifPresent(template -> {
-            BlockPos.MutableBlockPos mutable = startSpot.mutable();
-            ChunkAccess chunk = world.getChunk(mutable);
+            BlockPos.Mutable mutable = startSpot.mutableCopy();
+            Chunk chunk = world.getChunk(mutable);
             for(int x = 0; x < template.getSize().getX(); x++) {
                 for (int z = 0; z < template.getSize().getZ(); z++) {
                     for(int y = 0; y < template.getSize().getY(); y++) {
@@ -269,10 +268,10 @@ public class SpawnPiecesCommand {
                             chunk = world.getChunk(mutable);
                         }
 
-                        BlockState oldState = chunk.setBlockState(mutable, Blocks.STRUCTURE_VOID.defaultBlockState(), false);
+                        BlockState oldState = chunk.setBlockState(mutable, Blocks.STRUCTURE_VOID.getDefaultState(), false);
                         if(oldState != null) {
-                            world.getChunkSource().blockChanged(mutable);
-                            world.getChunkSource().getLightEngine().checkBlock(mutable);
+                            world.getChunkManager().markForUpdate(mutable);
+                            world.getChunkManager().getLightingProvider().checkBlock(mutable);
                         }
                     }
                 }
