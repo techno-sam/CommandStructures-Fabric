@@ -7,6 +7,6 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 
 @Mixin(ThreadedAnvilChunkStorage.class)
 public interface ChunkMapAccessor {
-    @Accessor("viewDistance")
+    @Accessor("watchDistance")
     int getViewDistance();
 }

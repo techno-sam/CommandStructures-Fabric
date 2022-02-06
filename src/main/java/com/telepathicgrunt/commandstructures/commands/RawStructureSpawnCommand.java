@@ -7,10 +7,6 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import com.telepathicgrunt.commandstructures.CommandStructuresMain;
 import com.telepathicgrunt.commandstructures.Utilities;
-import com.telepathicgrunt.commandstructures.mixin.MineshaftFeatureAccessor;
-import com.telepathicgrunt.commandstructures.mixin.NetherFortressFeatureAccessor;
-import com.telepathicgrunt.commandstructures.mixin.OceanMonumentFeatureAccessor;
-import com.telepathicgrunt.commandstructures.mixin.StrongholdFeatureAccessor;
 import net.minecraft.command.CommandException;
 import net.minecraft.command.CommandSource;
 import net.minecraft.command.argument.IdentifierArgumentType;
@@ -19,12 +15,8 @@ import net.minecraft.command.argument.Vec3ArgumentType;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.structure.BuriedTreasureGenerator;
-import net.minecraft.structure.NetherFossilGenerator;
-import net.minecraft.structure.PoolStructurePiece;
 import net.minecraft.structure.StructurePiece;
 import net.minecraft.structure.StructureStart;
-import net.minecraft.structure.pool.StructurePoolBasedGenerator;
 import net.minecraft.text.LiteralText;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockBox;
@@ -34,22 +26,17 @@ import net.minecraft.util.math.ChunkSectionPos;
 import net.minecraft.util.registry.Registry;
 import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.gen.ChunkRandom;
-import net.minecraft.world.gen.SimpleRandom;
 import net.minecraft.world.gen.chunk.StructureConfig;
 import net.minecraft.world.gen.feature.ConfiguredStructureFeature;
-import net.minecraft.world.gen.feature.DefaultFeatureConfig;
-import net.minecraft.world.gen.feature.MineshaftFeatureConfig;
-import net.minecraft.world.gen.feature.StructureFeature;
-import net.minecraft.world.gen.feature.StructurePoolFeatureConfig;
-import net.minecraft.world.level.levelgen.RandomSupport;
+
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/*import net.minecraft.world.level.levelgen.RandomSupport;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.structure.pieces.PieceGenerator;
 import net.minecraft.world.level.levelgen.structure.pieces.PieceGeneratorSupplier;
-import net.minecraft.world.level.levelgen.structure.pieces.StructurePiecesBuilder;
-
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
+import net.minecraft.world.level.levelgen.structure.pieces.StructurePiecesBuilder;*/
 
 public class RawStructureSpawnCommand {
     public static void dataGenCommand(CommandDispatcher<ServerCommandSource> dispatcher) {
@@ -74,7 +61,7 @@ public class RawStructureSpawnCommand {
                 generateStructure(Vec3ArgumentType.getPosArgument(cs, locationArg), cs.getArgument(cfRL, Identifier.class), cs.getArgument(saveStructureBounds, Boolean.class), true, null, cs);
                 return 1;
             })
-            .then(CommandManager.argument(saveStructureBounds, BoolArgumentType.bool())
+            .then(CommandManager.argument(sendChunkLightingPacket, BoolArgumentType.bool())
             .executes(cs -> {
                 generateStructure(Vec3ArgumentType.getPosArgument(cs, locationArg), cs.getArgument(cfRL, Identifier.class), cs.getArgument(saveStructureBounds, Boolean.class), cs.getArgument(sendChunkLightingPacket, Boolean.class), null, cs);
                 return 1;
@@ -102,11 +89,11 @@ public class RawStructureSpawnCommand {
 
         ChunkRandom worldgenrandom;
         if (randomSeed == null) {
-            worldgenrandom = new ChunkRandom(new XoroshiroRandomSource(RandomSupport.seedUniquifier()));
+            worldgenrandom = new ChunkRandom();
             long i = worldgenrandom.setPopulationSeed(level.getSeed(), centerPos.getX(), centerPos.getZ());
             worldgenrandom.setDecoratorSeed(i, 0, 0);
         } else {
-            worldgenrandom = new ChunkRandom(new SimpleRandom(randomSeed));
+            worldgenrandom = new ChunkRandom(randomSeed);
         }
 
         ConfiguredStructureFeature<?, ?> configuredStructureFeature = level.getRegistryManager().getMutable(Registry.CONFIGURED_STRUCTURE_FEATURE_KEY).get(structureRL);
@@ -119,20 +106,8 @@ public class RawStructureSpawnCommand {
 
         StructureStart<?> structureStart;
 
-        if (configuredStructureFeature.feature == StructureFeature.MINESHAFT) {
-            StructurePiecesBuilder structurePiecesBuilder = new StructurePiecesBuilder();
-            MineshaftFeatureAccessor.callGeneratePieces(
-                    structurePiecesBuilder,
-                    new PieceGenerator.Context<>(
-                            (MineshaftFeatureConfig) configuredStructureFeature.config,
-                            level.getChunkManager().getChunkGenerator(),
-                            level.getStructureManager(),
-                            chunkPos,
-                            level,
-                            worldgenrandom,
-                            0)
-            );
-            structureStart = new StructureStart<>(configuredStructureFeature.feature, chunkPos, 0, structurePiecesBuilder.build());
+        /*if (configuredStructureFeature.feature == StructureFeature.MINESHAFT) {
+            structureStart = new MineshaftFeature.Start(StructureFeature.MINESHAFT, chunkPos, 0, level.getSeed());
         }
         else if (configuredStructureFeature.feature == StructureFeature.MONUMENT) {
             StructurePiecesBuilder structurePiecesBuilder = new StructurePiecesBuilder();
@@ -220,19 +195,20 @@ public class RawStructureSpawnCommand {
                             0)
             );
             structureStart = new StructureStart<>(configuredStructureFeature.feature, chunkPos, 0, structurePiecesBuilder.build());
-        }
+        }*/
+        if (false) {}
         else {
             structureStart = configuredStructureFeature.tryPlaceStart(
                     level.getRegistryManager(),
                     level.getChunkManager().getChunkGenerator(),
                     level.getChunkManager().getChunkGenerator().getBiomeSource(),
                     level.getStructureManager(),
-                    randomSeed == null ? RandomSupport.seedUniquifier() : randomSeed,
-                    chunkPos,
-                    0,
-                    new StructureConfig(1, 0, 0),
-                    level,
-                    (biome) -> true
+                    randomSeed == null ? level.getSeed() : randomSeed, //seed
+                    chunkPos, //chunkpos
+                    level.getChunkManager().getChunkGenerator().getBiomeSource().getBiomeForNoiseGen(chunkPos), //biome
+                    0, //reference count
+                    new StructureConfig(1, 0, 0), //structure config
+                    level //height limit view
             );
         }
 

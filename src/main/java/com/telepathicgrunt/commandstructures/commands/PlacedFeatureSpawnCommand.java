@@ -1,5 +1,5 @@
 package com.telepathicgrunt.commandstructures.commands;
-
+/*
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.context.CommandContext;
@@ -19,6 +19,7 @@ import net.minecraft.text.LiteralText;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.registry.Registry;
+import net.minecraft.world.gen.feature.Feature;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 import net.minecraft.world.level.levelgen.placement.PlacementModifierType;
 
@@ -54,13 +55,13 @@ public class PlacedFeatureSpawnCommand {
     }
 
     private static Set<Identifier> placedFeatureSuggestions(CommandContext<ServerCommandSource> cs) {
-        return cs.getSource().getWorld().getRegistryManager().get(Registry.PLACED_FEATURE_REGISTRY).getIds();
+        return cs.getSource().getWorld().getRegistryManager().get(Registry.FEATURE_KEY).getIds();
     }
 
     private static void generateStructure(PosArgument coordinates, Identifier placedFeatureRL, boolean sendChunkLightingPacket, CommandContext<ServerCommandSource> cs) {
         ServerWorld level = cs.getSource().getWorld();
         BlockPos centerPos = coordinates.toAbsoluteBlockPos(cs.getSource());
-        PlacedFeature placedFeature = cs.getSource().getRegistryManager().get(Registry.PLACED_FEATURE_REGISTRY).get(placedFeatureRL);
+        Feature placedFeature = cs.getSource().getRegistryManager().get(Registry.FEATURE_KEY).get(placedFeatureRL);
         PlacementModifierType<?> biomePlacement = level.getRegistryManager().get(Registry.PLACEMENT_MODIFIER_REGISTRY).get(BIOME_PLACEMENT_RL);
 
         if(placedFeature == null) {
@@ -71,7 +72,7 @@ public class PlacedFeatureSpawnCommand {
 
         BlockPos worldBottomPos = new BlockPos(centerPos.getX(), level.getDimension().getMinimumY(), centerPos.getZ());
 
-        PlacedFeature noBiomeCheckPlacedFeature = new PlacedFeature(
+        Feature noBiomeCheckPlacedFeature = new PlacedFeature(
                 ((PlacedFeatureAccessor)placedFeature).getFeature(),
                 placedFeature.getPlacement().stream()
                         .filter(placementModifier -> placementModifier.type() != biomePlacement)
@@ -89,4 +90,4 @@ public class PlacedFeatureSpawnCommand {
             Utilities.refreshChunksOnClients(level);
         }
     }
-}
+}*/

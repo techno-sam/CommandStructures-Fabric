@@ -1,5 +1,6 @@
 package com.telepathicgrunt.commandstructures.commands;
 
+import com.google.common.collect.Lists;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -9,6 +10,7 @@ import com.mojang.brigadier.tree.LiteralCommandNode;
 import com.telepathicgrunt.commandstructures.CommandStructuresMain;
 import com.telepathicgrunt.commandstructures.Utilities;
 import com.telepathicgrunt.commandstructures.mixin.SinglePoolElementAccessor;
+import com.telepathicgrunt.commandstructures.util.SimplePiecesHolder;
 import net.minecraft.command.CommandException;
 import net.minecraft.command.CommandSource;
 import net.minecraft.command.argument.IdentifierArgumentType;
@@ -19,12 +21,15 @@ import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.structure.PoolStructurePiece;
 import net.minecraft.structure.StructurePiece;
+import net.minecraft.structure.StructurePiecesHolder;
 import net.minecraft.structure.pool.SinglePoolElement;
 import net.minecraft.structure.pool.StructurePool;
 import net.minecraft.structure.pool.StructurePoolBasedGenerator;
+import net.minecraft.structure.pool.StructurePoolElement;
 import net.minecraft.structure.processor.StructureProcessorList;
 import net.minecraft.structure.processor.StructureProcessorLists;
 import net.minecraft.text.LiteralText;
+import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockBox;
 import net.minecraft.util.math.BlockPos;
@@ -33,11 +38,13 @@ import net.minecraft.util.registry.Registry;
 import net.minecraft.world.gen.ChunkRandom;
 import net.minecraft.world.gen.SimpleRandom;
 import net.minecraft.world.gen.feature.StructurePoolFeatureConfig;
-import net.minecraft.world.level.levelgen.RandomSupport;
+/*import net.minecraft.world.level.levelgen.RandomSupport;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.structure.pieces.PieceGenerator;
 import net.minecraft.world.level.levelgen.structure.pieces.PieceGeneratorSupplier;
-import net.minecraft.world.level.levelgen.structure.pieces.StructurePiecesBuilder;
+import net.minecraft.world.level.levelgen.structure.pieces.StructurePiecesBuilder;*/
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -121,8 +128,42 @@ public class StructureSpawnCommand {
                 depth
         );
 
+        ChunkRandom worldgenrandom;
+        if(randomSeed == null) {
+            worldgenrandom = new ChunkRandom();
+            long i = worldgenrandom.setPopulationSeed(level.getSeed(), centerPos.getX(), centerPos.getZ());
+            worldgenrandom.setDecoratorSeed(i, 0, 0);
+        }
+        else {
+            worldgenrandom = new ChunkRandom(randomSeed);
+        }
+
+        StructurePoolElement startingElement = newConfig.getStartPool().get().getRandomElement(worldgenrandom);
+
+        PoolStructurePiece poolStructurePiece = new PoolStructurePiece(level.getStructureManager(), startingElement, centerPos, startingElement.getGroundLevelDelta(), BlockRotation.NONE, new BlockBox(centerPos));
+        ArrayList<PoolStructurePiece> pieces = new ArrayList<>();
+        SimplePiecesHolder piecesHolder = new SimplePiecesHolder();
+        //StructurePoolBasedGenerator.method_27230(level.getRegistryManager(), poolStructurePiece, depth, PoolStructurePiece::new, level.getChunkManager().getChunkGenerator(), level.getStructureManager(), pieces, worldgenrandom, level);
+        StructurePoolBasedGenerator.generate(
+                level.getRegistryManager(),
+                new StructurePoolFeatureConfig(newConfig.getStartPool(), depth),
+                PoolStructurePiece::new,
+                level.getChunkManager().getChunkGenerator(),
+                level.getStructureManager(),
+                centerPos,
+                piecesHolder,
+                worldgenrandom,
+                legacyBoundingBoxRule,
+                heightmapSnap,
+                level
+                );
+        for (StructurePiece piece : piecesHolder.getPieces()) {
+            pieces.add((PoolStructurePiece) piece);
+        }
+
         // Create a new context with the new config that has our json pool. We will pass this into JigsawPlacement.addPieces
-        PieceGeneratorSupplier.Context<StructurePoolFeatureConfig> newContext = new PieceGeneratorSupplier.Context<>(
+
+        /*PieceGeneratorSupplier.Context<StructurePoolFeatureConfig> newContext = new PieceGeneratorSupplier.Context<>(
                 level.getChunkManager().getChunkGenerator(),
                 level.getChunkManager().getChunkGenerator().getBiomeSource(),
                 level.getSeed(),
@@ -139,59 +180,31 @@ public class StructureSpawnCommand {
                 PoolStructurePiece::new,
                 centerPos,
                 legacyBoundingBoxRule,
-                heightmapSnap);
+                heightmapSnap);*/
 
-        if(pieceGenerator.isPresent()) {
-            StructurePiecesBuilder structurepiecesbuilder = new StructurePiecesBuilder();
-            pieceGenerator.get().generatePieces(
-                    structurepiecesbuilder,
-                    new PieceGenerator.Context<>(
-                            newContext.config(),
-                            newContext.chunkGenerator(),
-                            newContext.structureManager(),
-                            newContext.chunkPos(),
-                            newContext.heightAccessor(),
-                            new ChunkRandom(new SimpleRandom(0L)),
-                            newContext.seed()));
 
-            ChunkRandom worldgenrandom;
-            if(randomSeed == null) {
-                worldgenrandom = new ChunkRandom(new XoroshiroRandomSource(RandomSupport.seedUniquifier()));
-                long i = worldgenrandom.setPopulationSeed(newContext.seed(), centerPos.getX(), centerPos.getZ());
-                worldgenrandom.setDecoratorSeed(i, 0, 0);
-            }
-            else {
-                worldgenrandom = new ChunkRandom(new SimpleRandom(randomSeed));
-            }
+        BlockPos finalCenterPos = centerPos;
+        List<PoolStructurePiece> structurePieceList = (List<PoolStructurePiece>) pieces.clone();
 
-            BlockPos finalCenterPos = centerPos;
-            List<StructurePiece> structurePieceList = structurepiecesbuilder.build().pieces();
+        ChunkPos chunkPos = randomSeed == null ? new ChunkPos(centerPos) : new ChunkPos(0, 0);
 
-            structurePieceList.forEach(piece -> {
-                if(disableProcessors) {
-                    if(piece instanceof PoolStructurePiece poolElementStructurePiece) {
-                        if(poolElementStructurePiece.getPoolElement() instanceof SinglePoolElement singlePoolElement) {
-                            Supplier<StructureProcessorList> oldProcessorList = ((SinglePoolElementAccessor)singlePoolElement).getProcessors();
-                            ((SinglePoolElementAccessor)singlePoolElement).setProcessors(() -> StructureProcessorLists.EMPTY);
-                            generatePiece(level, newContext, worldgenrandom, finalCenterPos, piece);
-                            ((SinglePoolElementAccessor)singlePoolElement).setProcessors(oldProcessorList); // Set the processors back or else our change is permanent.
-                        }
-                    }
-                }
-                else {
-                    generatePiece(level, newContext, worldgenrandom, finalCenterPos, piece);
-                }
-            });
-
-            if(!structurePieceList.isEmpty()) {
-                if(sendChunkLightingPacket) {
-                    Utilities.refreshChunksOnClients(level);
+        structurePieceList.forEach(piece -> {
+            if(disableProcessors) {
+                if(piece.getPoolElement() instanceof SinglePoolElement singlePoolElement) {
+                    Supplier<StructureProcessorList> oldProcessorList = ((SinglePoolElementAccessor)singlePoolElement).getProcessors();
+                    ((SinglePoolElementAccessor)singlePoolElement).setProcessors(() -> StructureProcessorLists.EMPTY);
+                    generatePiece(level, chunkPos, worldgenrandom, finalCenterPos, piece);
+                    ((SinglePoolElementAccessor)singlePoolElement).setProcessors(oldProcessorList); // Set the processors back or else our change is permanent.
                 }
             }
             else {
-                String errorMsg = structureStartPoolRL + " Template Pool spawned no pieces.";
-                CommandStructuresMain.LOGGER.error(errorMsg);
-                throw new CommandException(new LiteralText(errorMsg));
+                generatePiece(level, chunkPos, worldgenrandom, finalCenterPos, piece);
+            }
+        });
+
+        if(!structurePieceList.isEmpty()) {
+            if(sendChunkLightingPacket) {
+                Utilities.refreshChunksOnClients(level);
             }
         }
         else {
@@ -201,14 +214,23 @@ public class StructureSpawnCommand {
         }
     }
 
-    private static void generatePiece(ServerWorld level, PieceGeneratorSupplier.Context<StructurePoolFeatureConfig> newContext, ChunkRandom worldgenrandom, BlockPos finalCenterPos, StructurePiece piece) {
-        piece.generate(
+    private static void generatePiece(ServerWorld level, ChunkPos chunkPos, ChunkRandom worldgenrandom, BlockPos finalCenterPos, StructurePiece piece) {
+        /*piece.generate(
                 level,
                 level.getStructureAccessor(),
                 newContext.chunkGenerator(),
                 worldgenrandom,
                 BlockBox.infinite(),
                 newContext.chunkPos(),
+                finalCenterPos
+        );*/
+        piece.generate(
+                level,
+                level.getStructureAccessor(),
+                level.getChunkManager().getChunkGenerator(),
+                worldgenrandom,
+                BlockBox.infinite(),
+                chunkPos,
                 finalCenterPos
         );
     }

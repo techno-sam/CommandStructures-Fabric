@@ -5,12 +5,7 @@
   "compatibilityLevel": "JAVA_8",
   "mixins": [
     "ChunkMapAccessor",
-    "MineshaftFeatureAccessor",
-    "NetherFortressFeatureAccessor",
-    "OceanMonumentFeatureAccessor",
-    "PlacedFeatureAccessor",
-    "SinglePoolElementAccessor",
-    "StrongholdFeatureAccessor"
+    "SinglePoolElementAccessor"
   ],
   "client": [],
   "injectors": {

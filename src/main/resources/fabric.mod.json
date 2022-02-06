@@ -4,9 +4,10 @@
   "version": "${version}",
 
   "name": "Command Structures",
-  "description": "Spawn structures by command",
+  "description": "Spawn structures by command\nBackported source: https://github.com/techno-sam/CommandStructures-Fabric",
   "authors": [
-    "TelepathicGrunt"
+    "TelepathicGrunt",
+    "Slimeist"
   ],
   "contact": {
     "homepage": "https://github.com/TelepathicGrunt/CommandStructures-Forge"
@@ -26,7 +27,7 @@
   ],
   "depends": {
     "fabricloader": ">=0.12.0",
-    "minecraft": ">=1.18.1",
+    "minecraft": ">=1.17.1",
     "fabric": ">=0.43.1"
   }
 }

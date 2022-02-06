@@ -2,6 +2,7 @@ package com.telepathicgrunt.commandstructures;
 
 import com.telepathicgrunt.commandstructures.mixin.ChunkMapAccessor;
 import net.minecraft.network.packet.s2c.play.ChunkDataS2CPacket;
+import net.minecraft.network.packet.s2c.play.LightUpdateS2CPacket;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.chunk.Chunk;
@@ -18,9 +19,10 @@ public final class Utilities {
                     if(x + z < viewDistance) {
                         Chunk chunkAccess = level.getChunk(new ChunkPos(player.getChunkPos().x + x, player.getChunkPos().z + z).getStartPos());
                         if(chunkAccess instanceof WorldChunk levelChunk) {
-                            ChunkDataS2CPacket lightPacket = new ChunkDataS2CPacket(levelChunk, level.getLightingProvider(), null, null, true);
+                            ChunkDataS2CPacket dataPacket = new ChunkDataS2CPacket(levelChunk);
+                            LightUpdateS2CPacket lightPacket = new LightUpdateS2CPacket(levelChunk.getPos(), level.getLightingProvider(), null, null, true);
                             player.sendUnloadChunkPacket(levelChunk.getPos());
-                            player.sendInitialChunkPackets(levelChunk.getPos(), lightPacket);
+                            player.sendInitialChunkPackets(levelChunk.getPos(), dataPacket, lightPacket);
                         }
                     }
                 }
